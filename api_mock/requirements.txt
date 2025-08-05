@@ -1,0 +1,6 @@
+# api_mock/requirements.txt
+flask
+pandas
+requests
+xarray
+h5netcdf
