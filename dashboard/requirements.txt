@@ -1,0 +1,5 @@
+# dashboard/requirements.txt
+streamlit
+pandas
+pyarrow
+s3fs

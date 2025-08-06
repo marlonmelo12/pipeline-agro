@@ -126,17 +126,34 @@ services:
   
   # ... (depois do seu último serviço "production_data_saver")
 
-  spark-job:
-    
+  # --- 4. CAMADA DE TRANSFORMAÇÃO ---
+  spark-job-commodities:
     build:
       context: ./spark
-    container_name: spark_job
+    container_name: spark_job_commodities
     depends_on:
       - minio
-      - kafka # Adicionado para garantir que a infraestrutura esteja de pé
     networks: [pipeline_network]
-    command: ["spark-submit", "transform_commodities_stream.py"]
-    entrypoint: ["/usr/bin/tini", "--"]
+    # Este comando executa nosso script dentro do contêiner Spark
+    command: spark-submit jobs/transform_commodities.py
+
+  spark-job-climate:
+    build:
+      context: ./spark
+    container_name: spark_job_climate
+    depends_on:
+      - minio
+    networks: [pipeline_network]
+    command: spark-submit jobs/transform_climate.py
+
+  spark-job-production:
+    build:
+      context: ./spark
+    container_name: spark_job_production
+    depends_on:
+      - minio
+    networks: [pipeline_network]
+    command: spark-submit jobs/transform_production.py
 
 
 # --- 4. DECLARAÇÃO DA REDE E DOS VOLUMES ---
