@@ -1,4 +1,4 @@
-# AGRO_PIPELINE/docker-compose.yml (VERSÃO FINAL COMPLETA E ESTÁVEL)
+# AGRO_PIPELINE/docker-compose.yml (VERSÃO FINAL CORRIGIDA)
 
 services:
   # --- 1. INFRAESTRUTURA CENTRAL ---
@@ -9,11 +9,9 @@ services:
       - "9092:9092"
     networks: [pipeline_network]
     environment:
-      # Configuração do Modo KRaft (sem Zookeeper)
       - KAFKA_CFG_NODE_ID=1
       - KAFKA_CFG_PROCESS_ROLES=broker,controller
       - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
-      # Configuração dos Listeners para comunicação interna e externa
       - KAFKA_CFG_LISTENERS=INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
       - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka:29092,EXTERNAL://localhost:9092
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
@@ -48,7 +46,21 @@ services:
       - POSTGRES_DB=agro_db
     volumes: [postgres_agro_data:/var/lib/postgresql/data]
     networks: [pipeline_network]
-  
+
+  # Adicione o novo Data Warehouse PostgreSQL aqui, em sua própria seção
+  postgres-dw:
+    image: postgres:14-alpine
+    container_name: postgres_dw_service
+    ports:
+      - "5434:5432"
+    environment:
+      - POSTGRES_USER=dw_user
+      - POSTGRES_PASSWORD=dw_password
+      - POSTGRES_DB=dw_agro
+    volumes:
+      - postgres_dw_data:/var/lib/postgresql/data
+    networks: [pipeline_network]
+
   # --- 2. FONTES E PRODUTORES DE STREAMING ---
   api_mock:
     build:
@@ -124,9 +136,7 @@ services:
         condition: service_started
     networks: [pipeline_network]
   
-  # ... (depois do seu último serviço "production_data_saver")
-
-  # --- 4. CAMADA DE TRANSFORMAÇÃO ---
+  # --- 4. CAMADA DE TRANSFORMAÇÃO SPARK ---
   spark-job-commodities:
     build:
       context: ./spark
@@ -134,8 +144,10 @@ services:
     depends_on:
       - minio
     networks: [pipeline_network]
-    # Este comando executa nosso script dentro do contêiner Spark
-    command: spark-submit jobs/transform_commodities.py
+    command: >
+      /opt/bitnami/spark/bin/spark-submit
+      --jars /opt/bitnami/spark/jars/delta-spark_2.12-3.1.0.jar
+      jobs/transform_commodities.py
 
   spark-job-climate:
     build:
@@ -144,7 +156,10 @@ services:
     depends_on:
       - minio
     networks: [pipeline_network]
-    command: spark-submit jobs/transform_climate.py
+    command: >
+      /opt/bitnami/spark/bin/spark-submit
+      --jars /opt/bitnami/spark/jars/delta-spark_2.12-3.1.0.jar
+      jobs/transform_climate.py
 
   spark-job-production:
     build:
@@ -153,10 +168,37 @@ services:
     depends_on:
       - minio
     networks: [pipeline_network]
-    command: spark-submit jobs/transform_production.py
+    command: >
+      /opt/bitnami/spark/bin/spark-submit
+      --jars /opt/bitnami/spark/jars/delta-spark_2.12-3.1.0.jar
+      jobs/transform_production.py
+      
+  spark-gold-job:
+    build:
+      context: ./spark
+    container_name: spark_gold_job
+    depends_on:
+      - minio
+      - postgres-dw
+    networks: [pipeline_network]
+    command: >
+      /opt/bitnami/spark/bin/spark-submit
+      --jars /opt/bitnami/spark/jars/delta-spark_2.12-3.1.0.jar,/opt/bitnami/spark/jars/delta-storage-3.1.0.jar,/opt/bitnami/spark/jars/postgresql-42.7.7.jar
+      --conf "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension"
+      --conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+      jobs/create_gold_tables.py
+  
+  dashboard:
+    build:
+      context: ./dashboard
+    container_name: dashboard
+    ports:
+      - "8501:8501"
+    depends_on:
+      - postgres-dw
+    networks: [pipeline_network]
 
-
-# --- 4. DECLARAÇÃO DA REDE E DOS VOLUMES ---
+# --- 5. DECLARAÇÃO DA REDE E DOS VOLUMES ---
 networks:
   pipeline_network:
     driver: bridge
@@ -164,3 +206,4 @@ networks:
 volumes:
   minio_data:
   postgres_agro_data:
+  postgres_dw_data:

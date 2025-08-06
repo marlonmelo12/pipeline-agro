@@ -1,38 +1,18 @@
-# spark/jobs/transform_production.py (VERSÃO FINAL COM FOREACHBATCH)
-
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, sum as _sum, window
-from pyspark.sql.types import StringType, StructType, StructField, LongType, TimestampType
-
-# --- Configurações ---
-MINIO_ENDPOINT = "http://minio:9000"
-MINIO_ACCESS_KEY = "minioadmin"
-MINIO_SECRET_KEY = "minioadmin"
-BRONZE_BUCKET = "production-raw"
-SILVER_BUCKET = "production-silver"
-
-def process_and_save_batch(df, epoch_id):
-    """
-    Esta função é chamada para cada micro-lote de dados processados.
-    Ela salva o DataFrame do lote na camada Silver usando o modo 'overwrite'.
-    """
-    silver_path = f"s3a://{SILVER_BUCKET}/daily_total_production"
-    
-    print(f"--- Processando Lote ID: {epoch_id} ---")
-    if not df.isEmpty():
-        print(f"Salvando {df.count()} registros atualizados em: {silver_path}")
-        # Como estamos salvando o resultado completo do lote, usamos o modo 'overwrite'
-        # Isso efetivamente simula o 'outputMode("complete")' para cada lote.
-        (df.write
-         .mode("overwrite")
-         .parquet(silver_path)
-        )
+from pyspark.sql.functions import col, from_json, explode
+from pyspark.sql.types import StringType, StructType, StructField, DoubleType, ArrayType, DateType
 
 def main():
+    # --- Configurações ---
+    MINIO_ENDPOINT = "http://minio:9000"
+    MINIO_ACCESS_KEY = "minioadmin"
+    MINIO_SECRET_KEY = "minioadmin"
+    BRONZE_BUCKET = "production-raw"
+    SILVER_BUCKET = "production-silver"
+
     # --- Inicialização da Spark Session ---
     spark = (
-        SparkSession.builder.appName("ProductionStreamingTransformation")
-        # ... (a configuração da sessão continua a mesma)
+        SparkSession.builder.appName("ProductionSimpleTransformation")
         .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT)
         .config("spark.hadoop.fs.s3a.access.key", MINIO_ACCESS_KEY)
         .config("spark.hadoop.fs.s3a.secret.key", MINIO_SECRET_KEY)
@@ -42,44 +22,62 @@ def main():
         .getOrCreate()
     )
     spark.sparkContext.setLogLevel("INFO")
-    print("Spark Session para PRODUÇÃO iniciada.")
+    print("Spark Session para PRODUÇÃO (simples) iniciada.")
 
-    # --- Leitura do Stream (continua a mesma) ---
-    raw_schema = StructType([
+    # --- Leitura do Stream da Camada Bronze ---
+    bronze_path = f"s3a://{BRONZE_BUCKET}/*/*/*/*.json"
+    
+    # 1. Lemos o conteúdo do JSON como texto puro, pois cada arquivo contém uma lista.
+    raw_text_df = spark.readStream.format("text").load(bronze_path)
+
+    # 2. Define o schema de UM objeto JSON dentro da lista
+    single_record_schema = StructType([
         StructField("data", StringType(), True),
         StructField("unidade_federativa", StringType(), True),
         StructField("produto", StringType(), True),
-        StructField("producao", LongType(), True)
+        StructField("producao", DoubleType(), True)
     ])
-    bronze_path = f"s3a://{BRONZE_BUCKET}/*/*/*/*.json"
-    raw_stream_df = spark.readStream.schema(raw_schema).json(bronze_path)
-
-    # --- Transformação com Agregação (continua a mesma) ---
-    data_with_timestamp = raw_stream_df.withColumn("timestamp", col("data").cast(TimestampType()))
-    daily_total_production = (
-        data_with_timestamp
-        .withWatermark("timestamp", "10 minutes")
-        .groupBy(window(col("timestamp"), "1 day"))
-        .agg(_sum("producao").alias("producao_total_toneladas"))
-        .select(
-            col("window.start").cast("date").alias("data"),
-            "producao_total_toneladas"
-        )
+    
+    # 3. Converte a string de texto (que é uma lista JSON) para uma coluna do tipo Array do Spark
+    parsed_df = raw_text_df.withColumn(
+        "json_data", from_json(col("value"), ArrayType(single_record_schema))
     )
     
-    # --- Carga na Camada Silver usando foreachBatch ---
-    checkpoint_path = f"s3a://{SILVER_BUCKET}/_checkpoints/daily_total_production"
+    # 4. "Explode" a lista, transformando cada item da lista em uma linha separada
+    exploded_df = parsed_df.select(explode(col("json_data")).alias("data"))
+    
+    # 5. Agora podemos acessar os campos de cada registro normalmente
+    structured_df = exploded_df.select("data.*")
+
+    # --- Transformação Simples ---
+    # Apenas seleciona, renomeia e garante o tipo de dado correto
+    transformed_stream_df = (
+        structured_df
+        .withColumn("data", col("data").cast(DateType()))
+        .select(
+            col("data"),
+            col("unidade_federativa").alias("estado"),
+            col("producao")
+        )
+    )
+    print("Transformações simples de PRODUÇÃO definidas.")
+
+    # --- Carga na Camada Silver ---
+    silver_path = f"s3a://{SILVER_BUCKET}/production_data"
+    checkpoint_path = f"s3a://{SILVER_BUCKET}/_checkpoints/production_data"
 
     query = (
-        daily_total_production.writeStream
-        .foreachBatch(process_and_save_batch) # <-- MUDANÇA PRINCIPAL AQUI
-        .outputMode("update") # O modo para a agregação continua 'update'
+        transformed_stream_df.writeStream
+        .format("parquet")
+        .outputMode("append")
+        .option("path", silver_path)
         .option("checkpointLocation", checkpoint_path)
-        .trigger(processingTime='5 minutes')
+        .trigger(processingTime='2 minutes')
+        .partitionBy("data") # Particiona por data para otimizar consultas
         .start()
     )
     
-    print(f"Stream de PRODUÇÃO iniciado. Usando foreachBatch para salvar na camada Silver.")
+    print(f"Stream de PRODUÇÃO (simples) iniciado. Salvando dados em: {silver_path}")
     query.awaitTermination()
 
 if __name__ == "__main__":

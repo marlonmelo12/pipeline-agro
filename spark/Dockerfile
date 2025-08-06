@@ -1,15 +1,21 @@
-# spark/Dockerfile (VERSÃO FINAL)
+# spark/Dockerfile (VERSÃO FINAL CORRIGIDA)
 
-# Usamos a imagem oficial do Bitnami para Spark, que inclui Python (PySpark)
 FROM bitnami/spark:3.5
 
-# Define o diretório de trabalho
 WORKDIR /app
 
-# Copia o arquivo de dependências Python (se houver)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia a pasta inteira de jobs para dentro do contêiner
-# Agora todos os seus scripts de transformação estarão disponíveis
 COPY jobs/ ./jobs/
+COPY ./jars/ /opt/bitnami/spark/jars/
+
+# A linha COPY acima já é suficiente, contanto que
+# o JAR do Delta Lake e do PostgreSQL estejam na pasta ./jars/
+# Exemplo:
+# spark/
+#   ├── jars/
+#   │   ├── delta-spark_2.12-3.1.0.jar
+#   │   └── postgresql-42.7.3.jar
+#   ├── jobs/
+#   └── Dockerfile
