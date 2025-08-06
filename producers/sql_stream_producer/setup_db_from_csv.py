@@ -1,9 +1,13 @@
-# producers/sql_stream_producer/setup_db_from_final_csv.py (VERSÃO FINAL COM TRATAMENTO DE ERRO DE DATA)
-
 import pandas as pd
 from sqlalchemy import create_engine
-import locale
 import os
+import locale
+
+# Tenta usar o locale do sistema para português
+try:
+    locale.setlocale(locale.LC_TIME, 'pt_BR.utf8')
+except locale.Error:
+    print("⚠️ Locale pt_BR.utf8 não está disponível. Datas podem falhar ao converter.")
 
 # --- Configurações ---
 DB_USER = "agro_user"
@@ -17,69 +21,56 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_FILE_PATH = os.path.join(SCRIPT_DIR, "data", "dados_producao.csv")
 
 def setup_database_from_final_csv():
-    print(f"INICIANDO CARGA DE DADOS DO CSV FINAL PARA O POSTGRESQL...")
-    
+    print(f"🔄 Iniciando carga de dados do CSV: {CSV_FILE_PATH}...")
+
     try:
-        # --- PASSO 1: Leitura do CSV ---
-        print(f"Lendo o arquivo CSV bruto: {CSV_FILE_PATH}...")
-        df_wide = pd.read_csv(
-            CSV_FILE_PATH,
-            sep=',',
-            header=[3, 4],
-            index_col=0,
-            na_values='-',
-            encoding='utf-8-sig'
-        )
+        # Leitura completa do CSV
+        df = pd.read_csv(CSV_FILE_PATH)
 
-        # --- PASSO 2: Limpeza ---
-        df_wide.index.name = 'unidade_federativa'
-        if "Fonte: IBGE - Levantamento Sistemático da Produção Agrícola" in df_wide.index:
-            df_wide = df_wide.drop("Fonte: IBGE - Levantamento Sistemático da Produção Agrícola")
+        # Verificações básicas
+        if df.empty:
+            raise ValueError("❌ O arquivo CSV está vazio.")
 
-        # --- PASSO 3: Transformação (Unpivot) ---
-        print("Transformando dados...")
-        df_stacked = df_wide.stack(level=[0, 1], future_stack=True).reset_index()
+        expected_columns = {"data", "unidade_federativa", "producao"}
+        if not expected_columns.issubset(df.columns):
+            raise ValueError(f"❌ O CSV deve conter as colunas: {expected_columns}")
 
-        # --- PASSO 4: Limpeza Final ---
-        print("Limpando e formatando dados...")
-        df_stacked.columns = ['unidade_federativa', 'mes', 'produto', 'producao']
-        df_stacked.dropna(subset=['producao'], inplace=True)
-        df_stacked['produto'] = df_stacked['produto'].astype(str).str.split(' ').str[1]
-        
-        try:
-            locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
-        except locale.Error:
-            print("AVISO: Locale 'pt_BR.UTF-8' não encontrado.")
-        
-        # --- CORREÇÃO FINAL ESTÁ AQUI ---
-        # Converte a coluna de data de forma robusta, transformando erros em NaT (Not a Time)
-        df_stacked['data'] = pd.to_datetime(df_stacked['mes'], format='%B %Y', errors='coerce')
-        
-        # Remove as linhas onde a data não pôde ser convertida (ficou NaT)
-        df_stacked.dropna(subset=['data'], inplace=True)
-        
-        # O resto do script continua normalmente
-        df_stacked = df_stacked[df_stacked['data'].dt.year >= 2015].copy()
-        df_stacked['data'] = df_stacked['data'].dt.strftime('%Y-%m-%d')
-        df_tidy = df_stacked[['data', 'unidade_federativa', 'produto', 'producao']].copy()
-        
-        if df_tidy['producao'].dtype == 'object':
-             df_tidy['producao'] = df_tidy['producao'].str.replace('.', '', regex=False).str.replace(',', '.', regex=False).astype(float)
-        else:
-            df_tidy['producao'] = pd.to_numeric(df_tidy['producao'])
+        # Limpa dados nulos
+        df = df.dropna(subset=['data', 'unidade_federativa', 'producao'])
 
-        print("Transformação concluída. O formato final dos dados é:")
-        print(df_tidy.head())
+        # Converte produção para numérico
+        df['producao'] = pd.to_numeric(df['producao'], errors='coerce')
+        df = df.dropna(subset=['producao'])
 
-        # --- PASSO 5: Carga no PostgreSQL ---
+        # Converte data de formato "jan/15" para datetime (mês em português)
+        month_map = {
+            'jan': '01', 'fev': '02', 'mar': '03', 'abr': '04', 'mai': '05', 'jun': '06',
+            'jul': '07', 'ago': '08', 'set': '09', 'out': '10', 'nov': '11', 'dez': '12'
+        }
+
+        def convert_date(data_str):
+            try:
+                mes_abrev, ano = data_str.lower().split('/')
+                mes_num = month_map.get(mes_abrev)
+                if mes_num:
+                    return f"20{ano}-{mes_num}-01"  # dia fixo como 01
+            except:
+                return None
+
+        df['data'] = df['data'].apply(convert_date)
+        df = df.dropna(subset=['data'])
+
+        # Conecta ao banco e insere
         conn_string = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
         engine = create_engine(conn_string)
-        print(f"Inserindo {len(df_tidy)} registros na tabela '{TABLE_NAME}'...")
-        df_tidy.to_sql(TABLE_NAME, engine, if_exists='replace', index=False)
-        print(f"\n✅ Sucesso! Tabela '{TABLE_NAME}' populada no PostgreSQL.")
+
+        df.to_sql(TABLE_NAME, engine, if_exists='replace', index=False)
+
+        print(f"✅ Sucesso! Inseridos {len(df)} registros na tabela '{TABLE_NAME}'.")
+        print(df.head())
 
     except Exception as e:
-        print(f"💥 ERRO AO CARREGAR DADOS DE PRODUÇÃO: {e}")
+        print(f"❌ ERRO durante o processamento: {e}")
 
 if __name__ == "__main__":
     setup_database_from_final_csv()

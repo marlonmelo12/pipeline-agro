@@ -127,6 +127,7 @@ services:
   # ... (depois do seu último serviço "production_data_saver")
 
   spark-job:
+    
     build:
       context: ./spark
     container_name: spark_job
@@ -134,6 +135,9 @@ services:
       - minio
       - kafka # Adicionado para garantir que a infraestrutura esteja de pé
     networks: [pipeline_network]
+    command: ["spark-submit", "transform_commodities_stream.py"]
+    entrypoint: ["/usr/bin/tini", "--"]
+
 
 # --- 4. DECLARAÇÃO DA REDE E DOS VOLUMES ---
 networks:

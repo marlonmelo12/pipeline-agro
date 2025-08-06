@@ -1,12 +1,7 @@
-# spark/Dockerfile
+FROM apache/spark:3.5.0
 
-# Usamos uma imagem oficial do PySpark que já vem com tudo configurado
-FROM apache/spark-py
-
-# Define o diretório de trabalho
 WORKDIR /app
 
-# Copia o nosso script de transformação
 COPY transform_commodities_stream.py .
 
-# As dependências de JARs serão baixadas pelo próprio Spark na execução
+ENTRYPOINT ["/opt/spark/bin/spark-submit", "transform_commodities_stream.py"]
