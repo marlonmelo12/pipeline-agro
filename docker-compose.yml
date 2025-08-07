@@ -1,7 +1,50 @@
-# AGRO_PIPELINE/docker-compose.yml (VERSÃO FINAL CORRIGIDA)
 
 services:
-  # --- 1. INFRAESTRUTURA CENTRAL ---
+  airflow-webserver:
+    build:
+      context: ./airflow
+    container_name: airflow-webserver
+    depends_on: [postgres-airflow, redis]
+    environment:
+      - AIRFLOW_CORE_EXECUTOR=CeleryExecutor
+      - AIRFLOW_DATABASE_SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      - AIRFLOW_CELERY_BROKER_URL=redis://redis:6379/0
+      - AIRFLOW_CELERY_RESULT_BACKEND=db+postgresql://airflow:airflow@postgres-airflow/airflow
+      - AIRFLOW_CORE_LOAD_EXAMPLES=false
+    ports: ["8080:8080"]
+    volumes: ["./airflow/dags:/opt/airflow/dags"]
+    networks: [pipeline_network]
+    healthcheck: { test: ["CMD", "curl", "--fail", "http://localhost:8080/health"], interval: 30s, timeout: 10s, retries: 5 }
+
+  airflow-scheduler:
+    build:
+      context: ./airflow
+    container_name: airflow-scheduler
+    depends_on: { airflow-webserver: { condition: service_healthy } }
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - AIRFLOW_CORE_EXECUTOR=CeleryExecutor
+      - AIRFLOW_DATABASE_SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      - AIRFLOW_CELERY_BROKER_URL=redis://redis:6379/0
+      - AIRFLOW_CELERY_RESULT_BACKEND=db+postgresql://airflow:airflow@postgres-airflow/airflow
+      - AIRFLOW_CORE_LOAD_EXAMPLES=false
+    command: scheduler
+    networks: [pipeline_network]
+
+  airflow-worker:
+    build:
+      context: ./airflow
+    container_name: airflow-worker
+    depends_on: { airflow-scheduler: { condition: service_healthy } }
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - AIRFLOW_CORE_EXECUTOR=CeleryExecutor
+      - AIRFLOW_DATABASE_SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      - AIRFLOW_CELERY_BROKER_URL=red
   kafka:
     image: bitnami/kafka:latest
     container_name: kafka
@@ -47,7 +90,6 @@ services:
     volumes: [postgres_agro_data:/var/lib/postgresql/data]
     networks: [pipeline_network]
 
-  # Adicione o novo Data Warehouse PostgreSQL aqui, em sua própria seção
   postgres-dw:
     image: postgres:14-alpine
     container_name: postgres_dw_service
@@ -61,7 +103,6 @@ services:
       - postgres_dw_data:/var/lib/postgresql/data
     networks: [pipeline_network]
 
-  # --- 2. FONTES E PRODUTORES DE STREAMING ---
   api_mock:
     build:
       context: ./api_mock
@@ -102,7 +143,6 @@ services:
         condition: service_started
     networks: [pipeline_network]
 
-  # --- 3. CONSUMIDORES (SALVAM NO MINIO) ---
   climate_data_saver:
     build:
       context: ./consumers/climate_saver
@@ -136,7 +176,6 @@ services:
         condition: service_started
     networks: [pipeline_network]
   
-  # --- 4. CAMADA DE TRANSFORMAÇÃO SPARK ---
   spark-job-commodities:
     build:
       context: ./spark
@@ -198,7 +237,6 @@ services:
       - postgres-dw
     networks: [pipeline_network]
 
-# --- 5. DECLARAÇÃO DA REDE E DOS VOLUMES ---
 networks:
   pipeline_network:
     driver: bridge

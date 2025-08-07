@@ -1,18 +1,16 @@
-# spark/transform_commodities.py
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, regexp_replace, to_timestamp
 from pyspark.sql.types import StringType, FloatType, StructType, StructField
 
 def main():
-    # --- 1. Configurações ---
+
     MINIO_ENDPOINT = "http://minio:9000"
     MINIO_ACCESS_KEY = "minioadmin"
     MINIO_SECRET_KEY = "minioadmin"
     BRONZE_BUCKET = "commodities-raw"
     SILVER_BUCKET = "commodities-silver"
 
-    # --- 2. Inicialização da Spark Session para o MinIO ---
     spark = (
         SparkSession.builder.appName("CommoditiesStreamingTransformation")
         .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT)
@@ -26,8 +24,6 @@ def main():
     spark.sparkContext.setLogLevel("INFO")
     print("Spark Session iniciada e configurada para o MinIO.")
 
-    # --- 3. Leitura do Stream da Camada Bronze ---
-    # Definimos o schema do JSON bruto para o Spark ler corretamente
     raw_schema = StructType([
         StructField("Data", StringType(), True),
         StructField("Último", StringType(), True),
@@ -43,8 +39,6 @@ def main():
     raw_stream_df = spark.readStream.schema(raw_schema).json(bronze_path)
     print(f"Iniciando stream da camada Bronze: {bronze_path}")
 
-    # --- 4. Transformação ---
-    # Selecionamos apenas as colunas de interesse e as limpamos
     transformed_stream_df = (
         raw_stream_df
         .select(col("Data").alias("data_str"), col("Último").alias("preco_str"))
@@ -54,7 +48,6 @@ def main():
     )
     print("Transformações definidas: Selecionando e limpando data e último preço.")
 
-    # --- 5. Carga na Camada Silver ---
     silver_path = f"s3a://{SILVER_BUCKET}/precos_soja"
     checkpoint_path = f"s3a://{SILVER_BUCKET}/_checkpoints/precos_soja"
 
@@ -64,7 +57,7 @@ def main():
         .outputMode("append")
         .option("path", silver_path)
         .option("checkpointLocation", checkpoint_path)
-        .trigger(processingTime='2 minutes') # Processa novos dados a cada 2 minutos
+        .trigger(processingTime='2 minutes')
         .start()
     )
 

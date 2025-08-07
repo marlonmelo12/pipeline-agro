@@ -6,7 +6,7 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 
-# --- CONFIGURAÇÃO ---
+
 START_YEAR = 2015
 END_YEAR = 2025
 DB_PATH = './api_mock/api_data/chirps_data.db'
@@ -30,7 +30,6 @@ def setup_database():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    # Criar tabela para armazenar os dados de precipitação
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS precipitation (
             date TEXT,
@@ -68,18 +67,16 @@ def fetch_and_store_chirps_data():
                 precip_df = precip_series.to_dataframe().reset_index()
                 precip_df.rename(columns={'time': 'date', 'precip': 'precipitation_mm'}, inplace=True)
                 
-                # Adicionar colunas de metadados
                 precip_df['hub'] = location['hub']
                 precip_df['state'] = location['state']
                 precip_df['latitude'] = location['lat']
                 precip_df['longitude'] = location['lon']
                 precip_df['date'] = pd.to_datetime(precip_df['date']).dt.strftime('%Y-%m-%d')
                 
-                # Inserir no SQLite
                 precip_df[['date', 'hub', 'state', 'latitude', 'longitude', 'precipitation_mm']].to_sql('precipitation', conn, if_exists='append', index=False)
         
         except Exception as e:
-            print(f"💥 ERRO AO PROCESSAR O ANO {year}: {e}")
+            print(f" ERRO AO PROCESSAR O ANO {year}: {e}")
 
     conn.close()
     print(f"\n{'='*50}\nINGESTÃO PARA O BANCO DE DADOS CONCLUÍDA.\n{'='*50}")
