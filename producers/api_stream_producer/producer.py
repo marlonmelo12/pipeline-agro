@@ -4,7 +4,11 @@ import time
 from kafka import KafkaProducer
 
 KAFKA_TOPIC = 'climate_data'
+<<<<<<< HEAD
 KAFKA_SERVER = 'kafka:29092' 
+=======
+KAFKA_SERVER = 'kafka:29092'
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
 API_URL = 'http://api_mock_service:5001/stream/climate'
 
 producer = KafkaProducer(
@@ -22,6 +26,10 @@ while True:
             print(f"Enviando dados de {date_str} para o tópico '{KAFKA_TOPIC}'...")
             producer.send(KAFKA_TOPIC, data)
             producer.flush()
+<<<<<<< HEAD
+=======
+            
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
             time.sleep(120) 
         elif response.status_code == 404:
             print("Fim do stream de dados da API. Encerrando o produtor.")

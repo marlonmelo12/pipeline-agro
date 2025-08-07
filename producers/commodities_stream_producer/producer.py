@@ -1,11 +1,17 @@
+<<<<<<< HEAD
 
+=======
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
 import pandas as pd
 import json
 import time
 from kafka import KafkaProducer
 from kafka.errors import NoBrokersAvailable
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
 KAFKA_TOPIC = 'commodities_prices'
 KAFKA_SERVER = 'kafka:29092'
 CSV_PATH = 'data/soja_historico.csv'
@@ -31,6 +37,7 @@ def run_commodities_stream_producer():
     while True:
         try:
             df = pd.read_csv(CSV_PATH)
+<<<<<<< HEAD
 
             df.columns = df.columns.str.strip().str.lower()
     
@@ -40,6 +47,15 @@ def run_commodities_stream_producer():
             df.sort_values(by='data', ascending=False, inplace=True)
             print("CSV lido e ordenado para enviar do mais recente para o mais antigo.")
             
+=======
+            
+            df.columns = df.columns.str.strip().str.lower()
+            df['data'] = pd.to_datetime(df['data'], dayfirst=True)
+            
+            df.sort_values(by='data', ascending=True, inplace=True)
+            print("CSV lido e ordenado para enviar do mais antigo para o mais recente.")
+          
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
             for index, row in df.iterrows():
                 message = row.to_dict()
                 data_do_preco = message.get('data').strftime('%Y-%m-%d')

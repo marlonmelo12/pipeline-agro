@@ -1,4 +1,4 @@
-# consumers/climate_saver/consumer.py (EXEMPLO)
+
 import json
 import io
 from datetime import datetime
@@ -13,7 +13,10 @@ MINIO_ENDPOINT = "minio:9000"
 MINIO_ACCESS_KEY = "minioadmin"
 MINIO_SECRET_KEY = "minioadmin"
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
 consumer = KafkaConsumer(
     KAFKA_TOPIC,
     bootstrap_servers=KAFKA_SERVER,
@@ -52,4 +55,8 @@ for message in consumer:
         print(f"Mensagem {message.offset} salva em MinIO: {MINIO_BUCKET}/{object_name}")
         
     except Exception as e:
+<<<<<<< HEAD
         print(f" Erro ao processar mensagem: {e}")
+=======
+        print(f"Erro ao processar mensagem: {e}")
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2

@@ -3,14 +3,13 @@ from pyspark.sql.functions import col
 from pyspark.sql.types import StringType, FloatType, StructType, StructField, DateType
 
 def main():
-    # --- Configurações ---
+
     MINIO_ENDPOINT = "http://minio:9000"
     MINIO_ACCESS_KEY = "minioadmin"
     MINIO_SECRET_KEY = "minioadmin"
     BRONZE_BUCKET = "climate-raw"
     SILVER_BUCKET = "climate-silver"
 
-    # --- Inicialização da Spark Session ---
     spark = (
         SparkSession.builder.appName("ClimateStreamingTransformation")
         .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT)
@@ -37,7 +36,10 @@ def main():
     bronze_path = f"s3a://{BRONZE_BUCKET}/*/*/*/*.json"
     raw_stream_df = spark.readStream.schema(raw_schema).json(bronze_path)
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
     transformed_stream_df = (
         raw_stream_df
         .select(
@@ -54,7 +56,11 @@ def main():
 
     query = (
         transformed_stream_df.writeStream
+<<<<<<< HEAD
         .format("parquet") 
+=======
+        .format("parquet")
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
         .option("header", "true")
         .outputMode("append")
         .option("path", silver_path)

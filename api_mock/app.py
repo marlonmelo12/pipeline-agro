@@ -9,12 +9,14 @@ def load_data():
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql_query("SELECT * FROM precipitation ORDER BY date", conn)
     conn.close()
-    # Agrupar por data
     grouped = df.groupby('date')
     return [group.to_dict('records') for _, group in grouped]
 
 STREAM_DATA = load_data()
+<<<<<<< HEAD
 
+=======
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
 CURRENT_DAY_INDEX = 0
 
 @app.route('/stream/climate', methods=['GET'])

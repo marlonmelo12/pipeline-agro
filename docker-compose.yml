@@ -227,6 +227,22 @@ services:
       --conf "spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
       jobs/create_gold_tables.py
   
+  spark-gold-job-climate:
+    build:
+      context: ./spark
+    container_name: spark_gold_job_climate
+    depends_on: [minio]
+    networks: [pipeline_network]
+    command: spark-submit jobs/create_gold_climate.py
+
+  spark-gold-job-prices:
+    build:
+      context: ./spark
+    container_name: spark_gold_job_prices
+    depends_on: [minio]
+    networks: [pipeline_network]
+    command: spark-submit jobs/create_gold_prices.py
+  
   dashboard:
     build:
       context: ./dashboard

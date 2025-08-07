@@ -32,12 +32,19 @@ def main():
         StructField("produto", StringType(), True),
         StructField("producao", DoubleType(), True)
     ])
+<<<<<<< HEAD
   
+=======
+    
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
     parsed_df = raw_text_df.withColumn(
         "json_data", from_json(col("value"), ArrayType(single_record_schema))
     )
     
+<<<<<<< HEAD
 
+=======
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
     exploded_df = parsed_df.select(explode(col("json_data")).alias("data"))
     
     structured_df = exploded_df.select("data.*")

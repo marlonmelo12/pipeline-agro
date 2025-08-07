@@ -5,7 +5,10 @@ from kafka import KafkaProducer
 from kafka.errors import NoBrokersAvailable
 from sqlalchemy import create_engine
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
 KAFKA_TOPIC = 'production_data'
 KAFKA_SERVER = 'kafka:29092'
 DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME = "agro_user", "agro_password", "postgres-db", "5432", "agro_db"
@@ -33,6 +36,7 @@ def run_sql_stream_producer():
     print("--- Produtor de Stream de Produção (PostgreSQL) Iniciado ---")
     while True:
         try:
+<<<<<<< HEAD
             
             df = pd.read_sql(f"SELECT * FROM {TABLE_NAME} ORDER BY data", engine)
             df['data'] = pd.to_datetime(df['data'])
@@ -43,6 +47,14 @@ def run_sql_stream_producer():
     
             for date, group_df in grouped_by_date:
                 
+=======
+            df = pd.read_sql(f"SELECT * FROM {TABLE_NAME} ORDER BY data", engine)
+            df['data'] = pd.to_datetime(df['data'])
+        
+            grouped_by_date = df.groupby('data')
+
+            for date, group_df in grouped_by_date:
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
                 message_payload = group_df.to_dict('records')
                 
                 date_str = date.strftime('%Y-%m-%d')
@@ -50,10 +62,15 @@ def run_sql_stream_producer():
 
                 print(f"Enviando dados de {date_str} para {num_states} estado(s) ao tópico '{KAFKA_TOPIC}'...")
                 
+<<<<<<< HEAD
             
                 producer.send(KAFKA_TOPIC, message_payload)
                 producer.flush()
                 
+=======
+                producer.send(KAFKA_TOPIC, message_payload)
+                producer.flush()
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
                 time.sleep(10)
 
             print("Fim dos dados da tabela. Reiniciando a consulta em 1 hora.")

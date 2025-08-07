@@ -76,7 +76,11 @@ def fetch_and_store_chirps_data():
                 precip_df[['date', 'hub', 'state', 'latitude', 'longitude', 'precipitation_mm']].to_sql('precipitation', conn, if_exists='append', index=False)
         
         except Exception as e:
+<<<<<<< HEAD
             print(f" ERRO AO PROCESSAR O ANO {year}: {e}")
+=======
+            print(f"ERRO AO PROCESSAR O ANO {year}: {e}")
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
 
     conn.close()
     print(f"\n{'='*50}\nINGESTÃO PARA O BANCO DE DADOS CONCLUÍDA.\n{'='*50}")

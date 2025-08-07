@@ -1,4 +1,4 @@
-# consumers/climate_saver/consumer.py (EXEMPLO)
+
 import json
 import io
 from datetime import datetime
@@ -16,7 +16,11 @@ MINIO_SECRET_KEY = "minioadmin"
 consumer = KafkaConsumer(
     KAFKA_TOPIC,
     bootstrap_servers=KAFKA_SERVER,
+<<<<<<< HEAD
     auto_offset_reset='earliest',
+=======
+    auto_offset_reset='earliest', 
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
     group_id=f'{KAFKA_TOPIC}-minio-savers'
 )
 minio_client = Minio(
@@ -25,7 +29,10 @@ minio_client = Minio(
     secret_key=MINIO_SECRET_KEY,
     secure=False
 )
+<<<<<<< HEAD
 
+=======
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
 found = minio_client.bucket_exists(MINIO_BUCKET)
 if not found:
     minio_client.make_bucket(MINIO_BUCKET)
@@ -37,7 +44,11 @@ print(f"Ouvindo o tópico '{KAFKA_TOPIC}' para salvar no bucket '{MINIO_BUCKET}'
 for message in consumer:
     try:
         raw_data_bytes = message.value
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> c12b6cae63b4907569f36ba8b7466d38a72573b2
         now = datetime.now()
         object_name = f"{now.strftime('%Y/%m/%d')}/{now.strftime('%H-%M-%S')}-{message.offset}.json"
         
