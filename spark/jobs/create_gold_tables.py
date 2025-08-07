@@ -1,10 +1,7 @@
-# spark/jobs/create_gold_tables.py (VERSÃO CORRIGIDA)
-
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, sum as _sum, month, year
 
 def main():
-    # --- Configurações (sem alteração) ---
     MINIO_ENDPOINT = "http://minio:9000"
     MINIO_ACCESS_KEY = "minioadmin"
     MINIO_SECRET_KEY = "minioadmin"
@@ -15,7 +12,6 @@ def main():
     SILVER_PRODUCTION_PATH = "s3a://production-silver/production_data"
     GOLD_PATH = "s3a://gold-layer/producao_mensal_por_estado"
 
-    # --- Inicialização da Spark Session (sem alteração) ---
     spark = (
         SparkSession.builder.appName("SilverToGoldAggregation")
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
@@ -29,16 +25,13 @@ def main():
         .getOrCreate()
     )
     
-    # --- Leitura dos Dados da Camada Silver (sem alteração) ---
     df_production = spark.read.format("parquet").load(SILVER_PRODUCTION_PATH)
 
-    # --- Transformação e Agregação de Negócio ---
     print("Aplicando agregações de negócio (produção mensal POR ESTADO)...")
     df_gold = (
         df_production
         .withColumn("ano", year(col("data")))
         .withColumn("mes", month(col("data")))
-        # --- CORREÇÃO AQUI: Adicionamos 'estado' ao groupBy ---
         .groupBy("ano", "mes", "estado")
         .agg(
             _sum("producao").alias("producao_mensal_total")
@@ -49,7 +42,6 @@ def main():
     print("Tabela Gold agregada:")
     df_gold.show()
 
-    # --- Carga na Camada Gold e DW (sem alteração) ---
     print(f"Salvando tabela Gold em formato Delta Lake em: {GOLD_PATH}")
     df_gold.write.format("delta").mode("overwrite").partitionBy("estado").save(GOLD_PATH)
 

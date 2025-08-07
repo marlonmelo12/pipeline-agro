@@ -17,7 +17,5 @@ with DAG(
     
     submit_spark_job = BashOperator(
         task_id='submit_commodities_spark_job',
-        # Este comando usa o docker-compose para iniciar o serviço 'spark-job'
-        # O '--rm' garante que o contêiner seja removido após a execução
         bash_command='docker-compose run --rm spark-job'
     )
