@@ -3,14 +3,12 @@ from pyspark.sql.functions import col, from_json, explode
 from pyspark.sql.types import StringType, StructType, StructField, DoubleType, ArrayType, DateType
 
 def main():
-    # --- Configurações ---
     MINIO_ENDPOINT = "http://minio:9000"
     MINIO_ACCESS_KEY = "minioadmin"
     MINIO_SECRET_KEY = "minioadmin"
     BRONZE_BUCKET = "production-raw"
     SILVER_BUCKET = "production-silver"
 
-    # --- Inicialização da Spark Session ---
     spark = (
         SparkSession.builder.appName("ProductionSimpleTransformation")
         .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT)
@@ -24,13 +22,10 @@ def main():
     spark.sparkContext.setLogLevel("INFO")
     print("Spark Session para PRODUÇÃO (simples) iniciada.")
 
-    # --- Leitura do Stream da Camada Bronze ---
     bronze_path = f"s3a://{BRONZE_BUCKET}/*/*/*/*.json"
     
-    # 1. Lemos o conteúdo do JSON como texto puro, pois cada arquivo contém uma lista.
     raw_text_df = spark.readStream.format("text").load(bronze_path)
 
-    # 2. Define o schema de UM objeto JSON dentro da lista
     single_record_schema = StructType([
         StructField("data", StringType(), True),
         StructField("unidade_federativa", StringType(), True),
@@ -38,19 +33,14 @@ def main():
         StructField("producao", DoubleType(), True)
     ])
     
-    # 3. Converte a string de texto (que é uma lista JSON) para uma coluna do tipo Array do Spark
     parsed_df = raw_text_df.withColumn(
         "json_data", from_json(col("value"), ArrayType(single_record_schema))
     )
     
-    # 4. "Explode" a lista, transformando cada item da lista em uma linha separada
     exploded_df = parsed_df.select(explode(col("json_data")).alias("data"))
     
-    # 5. Agora podemos acessar os campos de cada registro normalmente
     structured_df = exploded_df.select("data.*")
 
-    # --- Transformação Simples ---
-    # Apenas seleciona, renomeia e garante o tipo de dado correto
     transformed_stream_df = (
         structured_df
         .withColumn("data", col("data").cast(DateType()))
@@ -62,7 +52,6 @@ def main():
     )
     print("Transformações simples de PRODUÇÃO definidas.")
 
-    # --- Carga na Camada Silver ---
     silver_path = f"s3a://{SILVER_BUCKET}/production_data"
     checkpoint_path = f"s3a://{SILVER_BUCKET}/_checkpoints/production_data"
 
@@ -73,7 +62,7 @@ def main():
         .option("path", silver_path)
         .option("checkpointLocation", checkpoint_path)
         .trigger(processingTime='2 minutes')
-        .partitionBy("data") # Particiona por data para otimizar consultas
+        .partitionBy("data") 
         .start()
     )
     
